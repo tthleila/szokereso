@@ -1,0 +1,266 @@
+﻿<!DOCTYPE html>
+<html lang="hu">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Állatos Szókereső</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            text-align: center;
+            background-color: #e6ccff;
+        }
+
+        h1 {
+            color: #5d0096;
+        }
+
+        #game-container {
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+            gap: 20px;
+            margin-top: 20px;
+        }
+
+        #grid {
+            display: grid;
+            grid-template-columns: repeat(10, 40px);
+            grid-template-rows: repeat(10, 40px);
+            gap: 2px;
+        }
+
+        .cell {
+            width: 40px;
+            height: 40px;
+            border: 2px solid #7b1fa2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            background-color: #f3e5f5;
+            color: #4a0072;
+            transition: background-color 0.3s ease-in-out;
+        }
+
+            .cell:hover {
+                background-color: #d1c4e9;
+            }
+
+            .cell.selected {
+                background-color: #9575cd;
+                color: white;
+            }
+
+            .cell.correct {
+                background-color: #7e57c2;
+                color: white;
+            }
+
+        #word-list {
+            background-color: white;
+            padding: 15px;
+            border-radius: 8px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+            width: 200px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        h2 {
+            font-size: 18px;
+            color: #5d0096;
+        }
+
+        ul {
+            list-style: none;
+            padding: 0;
+        }
+
+        li {
+            font-size: 16px;
+            margin: 5px 0;
+            color: #4a0072;
+        }
+
+        #new-game-btn {
+            margin-top: 15px;
+            padding: 10px 20px;
+            font-size: 16px;
+            cursor: pointer;
+            border: none;
+            background-color: #7b1fa2;
+            color: white;
+            border-radius: 5px;
+            transition: background-color 0.3s;
+        }
+
+            #new-game-btn:hover {
+                background-color: #5d0096;
+            }
+    </style>
+</head>
+<body>
+    <h1>10x10 Szókereső – Állatok</h1>
+
+    <div id="game-container">
+        <div id="grid"></div>
+        <div id="word-list">
+            <h2>Keresendő szavak</h2>
+            <ul id="words"></ul>
+            <button id="new-game-btn" onclick="initGame()">Új játék</button>
+        </div>
+    </div>
+
+    <p id="message"></p>
+
+    <script>
+        const words = ["LÓ", "KUTYA", "MACSKA", "BÉKA", "SÜN", "BAGOLY", "RÓKA", "HAL", "MEDVE", "SZARVAS"];
+        const gridSize = 10;
+        let gridLetters = [];
+        let selectedCells = [];
+        let foundWords = new Set();
+        const grid = document.getElementById("grid");
+        const message = document.getElementById("message");
+        const wordList = document.getElementById("words");
+
+        function generateEmptyGrid() {
+            return Array.from({ length: gridSize }, () => Array(gridSize).fill(""));
+        }
+
+        function placeWord(grid, word) {
+            const directions = [
+                { x: 1, y: 0 },
+                { x: 0, y: 1 },
+                { x: 1, y: 1 },
+                { x: -1, y: 1 }
+            ];
+
+            let placed = false;
+            while (!placed) {
+                const startX = Math.floor(Math.random() * gridSize);
+                const startY = Math.floor(Math.random() * gridSize);
+                const direction = directions[Math.floor(Math.random() * directions.length)];
+                let x = startX, y = startY;
+                let fits = true;
+
+                for (let i = 0; i < word.length; i++) {
+                    if (x < 0 || x >= gridSize || y < 0 || y >= gridSize || (grid[y][x] !== "" && grid[y][x] !== word[i])) {
+                        fits = false;
+                        break;
+                    }
+                    x += direction.x;
+                    y += direction.y;
+                }
+
+                if (fits) {
+                    x = startX;
+                    y = startY;
+                    for (let i = 0; i < word.length; i++) {
+                        grid[y][x] = word[i];
+                        x += direction.x;
+                        y += direction.y;
+                    }
+                    placed = true;
+                }
+            }
+        }
+
+        function fillEmptySpaces(grid) {
+            const alphabet = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+            for (let y = 0; y < gridSize; y++) {
+                for (let x = 0; x < gridSize; x++) {
+                    if (grid[y][x] === "") {
+                        grid[y][x] = alphabet[Math.floor(Math.random() * alphabet.length)];
+                    }
+                }
+            }
+        }
+
+        function createGrid() {
+            grid.innerHTML = "";
+            selectedCells = [];
+            for (let row = 0; row < gridSize; row++) {
+                for (let col = 0; col < gridSize; col++) {
+                    const cell = document.createElement("div");
+                    cell.classList.add("cell");
+                    cell.textContent = gridLetters[row][col];
+                    cell.dataset.row = row;
+                    cell.dataset.col = col;
+
+                    cell.addEventListener("click", () => {
+                        if (!cell.classList.contains("correct")) {
+                            cell.classList.toggle("selected");
+                            toggleCellSelection(row, col, cell);
+                        }
+                    });
+
+                    grid.appendChild(cell);
+                }
+            }
+        }
+
+        function toggleCellSelection(row, col, cell) {
+            const cellKey = `${row}-${col}`;
+            if (selectedCells.includes(cellKey)) {
+                selectedCells = selectedCells.filter(c => c !== cellKey);
+                cell.classList.remove("selected");
+            } else {
+                selectedCells.push(cellKey);
+            }
+            checkSelectedWord();
+        }
+
+        function checkSelectedWord() {
+            let selectedWord = selectedCells.map(cell => {
+                let [row, col] = cell.split("-").map(Number);
+                return gridLetters[row][col];
+            }).join("");
+
+            if (words.includes(selectedWord) && !foundWords.has(selectedWord)) {
+                foundWords.add(selectedWord);
+                selectedCells.forEach(cell => {
+                    let [row, col] = cell.split("-").map(Number);
+                    document.querySelector(`[data-row="${row}"][data-col="${col}"]`).classList.add("correct");
+                });
+
+                removeWordFromList(selectedWord);
+                selectedCells = [];
+            }
+        }
+
+        function removeWordFromList(word) {
+            let items = wordList.querySelectorAll("li");
+            items.forEach(item => {
+                if (item.textContent === word) {
+                    item.remove();
+                }
+            });
+        }
+
+        function displayWordList() {
+            wordList.innerHTML = "";
+            words.forEach(word => {
+                const li = document.createElement("li");
+                li.textContent = word;
+                wordList.appendChild(li);
+            });
+        }
+
+        function initGame() {
+            gridLetters = generateEmptyGrid();
+            foundWords.clear();
+            words.forEach(word => placeWord(gridLetters, word));
+            fillEmptySpaces(gridLetters);
+            createGrid();
+            displayWordList();
+            message.textContent = "";
+        }
+
+        initGame();
+    </script>
+</body>
+</html>
