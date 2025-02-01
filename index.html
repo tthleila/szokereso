@@ -1,4 +1,4 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="hu">
 <head>
     <meta charset="UTF-8">
@@ -8,11 +8,16 @@
         body {
             font-family: Arial, sans-serif;
             text-align: center;
-            background-color: #e6ccff;
+            background-color: #f3e5f5;
         }
 
         h1 {
             color: #5d0096;
+        }
+
+        #timer-container {
+            font-size: 18px;
+            margin: 10px;
         }
 
         #game-container {
@@ -40,78 +45,64 @@
             font-size: 18px;
             font-weight: bold;
             cursor: pointer;
-            background-color: #f3e5f5;
+            background-color: #e1bee7;
             color: #4a0072;
             transition: background-color 0.3s ease-in-out;
         }
 
-            .cell:hover {
-                background-color: #d1c4e9;
-            }
-
             .cell.selected {
-                background-color: #9575cd;
-                color: white;
+                background-color: #b39ddb;
             }
 
             .cell.correct {
-                background-color: #7e57c2;
-                color: white;
+                background-color: #b39ddb;
             }
 
         #word-list {
             background-color: white;
             padding: 15px;
             border-radius: 8px;
-            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
             width: 200px;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
+            box-shadow: 0px 4px 8px rgba(0, 0, 0, 0.1);
         }
 
-        h2 {
-            font-size: 18px;
-            color: #5d0096;
-        }
-
-        ul {
-            list-style: none;
-            padding: 0;
-        }
-
-        li {
-            font-size: 16px;
-            margin: 5px 0;
-            color: #4a0072;
-        }
-
-        #new-game-btn {
+        button {
             margin-top: 15px;
             padding: 10px 20px;
             font-size: 16px;
             cursor: pointer;
-            border: none;
             background-color: #7b1fa2;
             color: white;
+            border: none;
             border-radius: 5px;
-            transition: background-color 0.3s;
+            transition: background-color 0.3s ease;
         }
 
-            #new-game-btn:hover {
-                background-color: #5d0096;
+            button:hover {
+                background-color: #6a1b9a;
             }
+
+        #message {
+            font-size: 20px;
+            font-weight: bold;
+            color: rebeccapurple;
+            margin-top: 10px;
+        }
     </style>
 </head>
 <body>
     <h1>10x10 Szókereső – Állatok</h1>
+
+    <div id="timer-container">
+        ⏳ Idő: <span id="timer">0</span> mp | 🏆 Rekord: <span id="record">0</span> mp
+    </div>
 
     <div id="game-container">
         <div id="grid"></div>
         <div id="word-list">
             <h2>Keresendő szavak</h2>
             <ul id="words"></ul>
-            <button id="new-game-btn" onclick="initGame()">Új játék</button>
+            <button onclick="initGame()">Új játék</button>
         </div>
     </div>
 
@@ -121,8 +112,11 @@
         const words = ["LÓ", "KUTYA", "MACSKA", "BÉKA", "SÜN", "BAGOLY", "RÓKA", "HAL", "MEDVE", "SZARVAS"];
         const gridSize = 10;
         let gridLetters = [];
-        let selectedCells = [];
         let foundWords = new Set();
+        let selectedCells = [];
+        let timer = 0;
+        let record = localStorage.getItem("record") ? Number(localStorage.getItem("record")) : null;
+        let interval;
         const grid = document.getElementById("grid");
         const message = document.getElementById("message");
         const wordList = document.getElementById("words");
@@ -133,10 +127,9 @@
 
         function placeWord(grid, word) {
             const directions = [
-                { x: 1, y: 0 },
-                { x: 0, y: 1 },
-                { x: 1, y: 1 },
-                { x: -1, y: 1 }
+                { x: 1, y: 0 }, 
+                { x: 0, y: 1 },  
+                { x: 1, y: 1 }  
             ];
 
             let placed = false;
@@ -148,7 +141,7 @@
                 let fits = true;
 
                 for (let i = 0; i < word.length; i++) {
-                    if (x < 0 || x >= gridSize || y < 0 || y >= gridSize || (grid[y][x] !== "" && grid[y][x] !== word[i])) {
+                    if (x >= gridSize || y >= gridSize || (grid[y][x] !== "" && grid[y][x] !== word[i])) {
                         fits = false;
                         break;
                     }
@@ -191,26 +184,23 @@
                     cell.dataset.row = row;
                     cell.dataset.col = col;
 
-                    cell.addEventListener("click", () => {
-                        if (!cell.classList.contains("correct")) {
-                            cell.classList.toggle("selected");
-                            toggleCellSelection(row, col, cell);
-                        }
-                    });
+                    cell.addEventListener("click", () => selectCell(cell, row, col));
 
                     grid.appendChild(cell);
                 }
             }
         }
 
-        function toggleCellSelection(row, col, cell) {
-            const cellKey = `${row}-${col}`;
-            if (selectedCells.includes(cellKey)) {
-                selectedCells = selectedCells.filter(c => c !== cellKey);
+        function selectCell(cell, row, col) {
+            const key = `${row}-${col}`;
+            if (selectedCells.includes(key)) {
+                selectedCells = selectedCells.filter(c => c !== key);
                 cell.classList.remove("selected");
             } else {
-                selectedCells.push(cellKey);
+                selectedCells.push(key);
+                cell.classList.add("selected");
             }
+
             checkSelectedWord();
         }
 
@@ -229,6 +219,16 @@
 
                 removeWordFromList(selectedWord);
                 selectedCells = [];
+
+                if (foundWords.size === words.length) {
+                    clearInterval(interval);
+                    message.textContent = "Gratulálok, meg találtad az összes szót!";
+                    if (!record || timer < record) {
+                        record = timer;
+                        localStorage.setItem("record", record);
+                    }
+                    document.getElementById("record").textContent = record;
+                }
             }
         }
 
@@ -250,7 +250,16 @@
             });
         }
 
+        function startTimer() {
+            clearInterval(interval);
+            timer = 0;
+            interval = setInterval(() => {
+                document.getElementById("timer").textContent = ++timer;
+            }, 1000);
+        }
+
         function initGame() {
+            startTimer();
             gridLetters = generateEmptyGrid();
             foundWords.clear();
             words.forEach(word => placeWord(gridLetters, word));
@@ -258,6 +267,7 @@
             createGrid();
             displayWordList();
             message.textContent = "";
+            document.getElementById("record").textContent = record || 0;
         }
 
         initGame();
